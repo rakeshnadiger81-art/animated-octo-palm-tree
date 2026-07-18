@@ -1,6 +1,11 @@
 // Server-side heatmap data builder. Runs entirely on Vercel (Node serverless function), so
-// fetching ~160 tickers in parallel has no browser CORS restriction and no per-origin connection
-// cap to worry about — both real problems if this were done client-side.
+// fetching this many tickers in parallel has no browser CORS restriction and no per-origin
+// connection cap to worry about — both real problems if this were done client-side.
+//
+// IMPORTANT: Vercel's free Hobby plan caps serverless function duration at 10 seconds, with no
+// way to raise it (setting a higher maxDuration in vercel.json causes the whole deployment to
+// fail). Every design choice below — ticker count, full parallelism instead of sequential
+// batches, a tight per-request timeout — exists to fit reliably inside that 10s budget.
 //
 // Ticker universe below is a curated, hand-picked set of well-known large-cap constituents per
 // sector. It's a reasonable representative snapshot, not a live "top 20 by market cap" ranking —
@@ -8,19 +13,19 @@
 // Price/change/volume/52-week range/SMA200 for every ticker below IS live, real data.
 
 const SECTOR_TICKERS = {
-  Technology: ["AAPL", "MSFT", "ORCL", "ADBE", "CRM", "NOW", "INTU", "IBM", "ACN", "CSCO", "SHOP", "SAP"],
-  AI: ["NVDA", "MSFT", "GOOGL", "META", "AMZN", "PLTR", "AMD", "AVGO", "SNOW", "CRWD", "ORCL", "SMCI"],
-  Semiconductors: ["NVDA", "AVGO", "TSM", "AMD", "QCOM", "TXN", "INTC", "AMAT", "MU", "LRCX", "ADI", "KLAC"],
-  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "C", "BLK", "SCHW", "AXP", "SPGI", "PNC", "USB"],
-  Healthcare: ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE", "DHR", "BMY", "AMGN", "ISRG"],
-  "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "BKNG", "TJX", "CMG", "MAR", "ABNB"],
-  "Consumer Staples": ["WMT", "PG", "KO", "PEP", "COST", "PM", "MDLZ", "CL", "KMB", "GIS", "STZ", "KDP"],
-  Industrials: ["GE", "CAT", "RTX", "HON", "UNP", "BA", "DE", "LMT", "UPS", "ETN", "ADP", "MMM"],
-  Energy: ["XOM", "CVX", "COP", "SLB", "EOG", "PSX", "MPC", "OXY", "WMB", "KMI", "VLO", "HES"],
-  Utilities: ["NEE", "SO", "DUK", "AEP", "SRE", "D", "EXC", "XEL", "ED", "PEG", "WEC", "ES"],
-  "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "T", "CMCSA", "CHTR", "EA", "WBD", "OMC"],
-  "Real Estate": ["PLD", "AMT", "EQIX", "SPG", "PSA", "O", "WELL", "DLR", "CCI", "VICI", "AVB", "EQR"],
-  Materials: ["LIN", "SHW", "APD", "ECL", "FCX", "NEM", "DOW", "DD", "NUE", "VMC", "MLM", "ALB"],
+  Technology: ["AAPL", "MSFT", "ORCL", "ADBE", "CRM", "NOW", "INTU", "IBM", "ACN", "CSCO"],
+  AI: ["NVDA", "MSFT", "GOOGL", "META", "AMZN", "PLTR", "AMD", "AVGO", "SNOW", "CRWD"],
+  Semiconductors: ["NVDA", "AVGO", "TSM", "AMD", "QCOM", "TXN", "INTC", "AMAT", "MU", "LRCX"],
+  Financials: ["JPM", "BAC", "WFC", "GS", "MS", "C", "BLK", "SCHW", "AXP", "SPGI"],
+  Healthcare: ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "PFE", "DHR", "BMY"],
+  "Consumer Discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "LOW", "SBUX", "BKNG", "TJX", "CMG"],
+  "Consumer Staples": ["WMT", "PG", "KO", "PEP", "COST", "PM", "MDLZ", "CL", "KMB", "GIS"],
+  Industrials: ["GE", "CAT", "RTX", "HON", "UNP", "BA", "DE", "LMT", "UPS", "ETN"],
+  Energy: ["XOM", "CVX", "COP", "SLB", "EOG", "PSX", "MPC", "OXY", "WMB", "KMI"],
+  Utilities: ["NEE", "SO", "DUK", "AEP", "SRE", "D", "EXC", "XEL", "ED", "PEG"],
+  "Communication Services": ["GOOGL", "META", "NFLX", "DIS", "TMUS", "VZ", "T", "CMCSA", "CHTR", "EA"],
+  "Real Estate": ["PLD", "AMT", "EQIX", "SPG", "PSA", "O", "WELL", "DLR", "CCI", "VICI"],
+  Materials: ["LIN", "SHW", "APD", "ECL", "FCX", "NEM", "DOW", "DD", "NUE", "VMC"],
 };
 
 // Illustrative sizing tiers only (not live shares-outstanding-derived market cap) — used purely
@@ -32,11 +37,12 @@ const LARGE_TIER = new Set([
 ]);
 
 const INDEX_TICKERS = { SPX: "^GSPC", NDX: "^IXIC", DJI: "^DJI", RUT: "^RUT", VIX: "^VIX" };
+const PER_REQUEST_TIMEOUT_MS = 5000;
 
 async function fetchYahooChart(symbol) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1y&interval=1d`;
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 6000);
+  const id = setTimeout(() => controller.abort(), PER_REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
       signal: controller.signal,
@@ -85,22 +91,23 @@ async function fetchYahooChart(symbol) {
   }
 }
 
-async function fetchAllChunked(symbols, chunkSize = 25) {
+// Full parallelism, not sequential batches — Node has no per-origin connection cap like a
+// browser does, so there's no benefit to chunking, only added latency from waiting on each
+// batch in turn. Individual failures (timeout, bad symbol, etc.) are swallowed per-ticker via
+// allSettled rather than failing the whole response.
+async function fetchAllParallel(symbols) {
   const results = {};
-  for (let i = 0; i < symbols.length; i += chunkSize) {
-    const chunk = symbols.slice(i, i + chunkSize);
-    const settled = await Promise.allSettled(chunk.map(fetchYahooChart));
-    settled.forEach((r, idx) => {
-      if (r.status === "fulfilled") results[chunk[idx]] = r.value;
-    });
-  }
+  const settled = await Promise.allSettled(symbols.map(fetchYahooChart));
+  settled.forEach((r, idx) => {
+    if (r.status === "fulfilled") results[symbols[idx]] = r.value;
+  });
   return results;
 }
 
 export default async function handler(req, res) {
   try {
     const allSymbols = Array.from(new Set([...Object.values(SECTOR_TICKERS).flat(), ...Object.values(INDEX_TICKERS)]));
-    const dataMap = await fetchAllChunked(allSymbols, 25);
+    const dataMap = await fetchAllParallel(allSymbols);
 
     const sectors = {};
     for (const [sector, tickers] of Object.entries(SECTOR_TICKERS)) {
@@ -124,3 +131,4 @@ export default async function handler(req, res) {
     res.status(500).json({ error: String(e && e.message ? e.message : e) });
   }
 }
+
