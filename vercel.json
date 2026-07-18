@@ -1,9 +1,5 @@
 {
   "framework": "vite",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/heatmap.js": { "maxDuration": 30 },
-    "api/proxy.js": { "maxDuration": 15 }
-  }
+  "outputDirectory": "dist"
 }
