@@ -1,17 +1,19 @@
 import React, { useState } from "react";
-import { LayoutGrid, LineChart, Newspaper, CalendarDays, Microscope, Landmark } from "lucide-react";
+import { LayoutGrid, LineChart, Newspaper, CalendarDays, Microscope, Landmark, Grid3x3 } from "lucide-react";
 import StockDesk from "./StockDesk.jsx";
 import Analyzer from "./Analyzer.jsx";
 import News from "./News.jsx";
 import Events from "./Events.jsx";
 import DeepDive from "./DeepDive.jsx";
 import Invest from "./Invest.jsx";
+import Heatmap from "./Heatmap.jsx";
 
 const TABS = [
   { key: "desk", label: "Watchlist", icon: LayoutGrid },
   { key: "analyzer", label: "Analyzer", icon: LineChart },
   { key: "deepdive", label: "Deep Dive", icon: Microscope },
   { key: "invest", label: "Invest", icon: Landmark },
+  { key: "heatmap", label: "Heatmap", icon: Grid3x3 },
   { key: "news", label: "News", icon: Newspaper },
   { key: "events", label: "Events", icon: CalendarDays },
 ];
@@ -38,6 +40,7 @@ export default function App() {
       {tab === "analyzer" && <Analyzer />}
       {tab === "deepdive" && <DeepDive />}
       {tab === "invest" && <Invest />}
+      {tab === "heatmap" && <Heatmap />}
       {tab === "news" && <News />}
       {tab === "events" && <Events />}
     </div>
