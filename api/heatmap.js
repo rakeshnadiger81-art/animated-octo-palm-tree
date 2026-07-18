@@ -64,7 +64,11 @@ async function fetchYahooChart(symbol) {
     }
     if (!closes.length) throw new Error("no closes");
     const price = meta.regularMarketPrice ?? closes[closes.length - 1];
-    const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? closes[closes.length - 2];
+    // meta.chartPreviousClose is the close immediately before the requested range's *start*
+    // (≈1 year ago for range=1y) — using it as a fallback here was the bug: whenever Yahoo
+    // omitted meta.previousClose, this silently computed a ~1-year return instead of today's.
+    // closes[closes.length - 2] is always the prior trading day's close, regardless of range.
+    const prevClose = meta.previousClose ?? closes[closes.length - 2];
     const changePercent = prevClose ? ((price - prevClose) / prevClose) * 100 : null;
     const volume = meta.regularMarketVolume ?? volumes[volumes.length - 1] ?? null;
     const avgVol20 = volumes.length >= 21 ? volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20 : null;
