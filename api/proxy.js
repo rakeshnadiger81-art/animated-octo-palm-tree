@@ -13,6 +13,16 @@ const ALLOWED_HOSTS = new Set([
 ]);
 
 export default async function handler(req, res) {
+  // Lightweight abuse deterrent: only this app's own frontend sends this header, so a random
+  // bot/script that discovers the URL and hits it directly gets turned away. This isn't real
+  // authentication (there's no secret worth protecting here — the allowlisted hosts are all
+  // public APIs) — it just keeps this function from becoming an open relay for anyone who finds
+  // the URL, which could otherwise burn through rate limits on the upstream services.
+  if (req.headers["x-app-proxy"] !== "stockdesk") {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+
   const { url } = req.query;
   if (!url || typeof url !== "string") {
     res.status(400).json({ error: "missing url parameter" });

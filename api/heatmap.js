@@ -113,7 +113,24 @@ async function fetchAllParallel(symbols) {
   return results;
 }
 
+// In-memory cache, scoped to this function's module (persists across invocations on a "warm"
+// serverless instance, reset on cold start — Vercel commonly reuses warm instances for requests
+// spaced a few minutes apart, so this meaningfully cuts repeat-click cost without needing an
+// external cache service like Vercel KV/Upstash). Not shared across concurrent instances, so
+// this is a best-effort speedup, not a strict single-fetch-per-TTL guarantee.
+let cachedPayload = null;
+let cachedAt = 0;
+const CACHE_TTL_MS = 45000;
+
 export default async function handler(req, res) {
+  const forceRefresh = req.query.refresh === "1";
+  if (!forceRefresh && cachedPayload && Date.now() - cachedAt < CACHE_TTL_MS) {
+    res.setHeader("cache-control", "public, max-age=30, stale-while-revalidate=90");
+    res.setHeader("x-cache", "hit");
+    res.status(200).json(cachedPayload);
+    return;
+  }
+
   try {
     const allSymbols = Array.from(new Set([...Object.values(SECTOR_TICKERS).flat(), ...Object.values(INDEX_TICKERS)]));
     const dataMap = await fetchAllParallel(allSymbols);
@@ -130,17 +147,22 @@ export default async function handler(req, res) {
 
     const sessionTime = indices.SPX?.sessionTime ?? Object.values(dataMap).find((d) => d.sessionTime)?.sessionTime ?? null;
 
-    res.setHeader("cache-control", "public, max-age=30, stale-while-revalidate=90");
-    res.status(200).json({
+    const payload = {
       sectors,
       indices,
       sessionTime,
       generatedAt: Date.now(),
       totalRequested: allSymbols.length,
       totalLoaded: Object.keys(dataMap).length,
-    });
+    };
+
+    cachedPayload = payload;
+    cachedAt = Date.now();
+
+    res.setHeader("cache-control", "public, max-age=30, stale-while-revalidate=90");
+    res.setHeader("x-cache", "miss");
+    res.status(200).json(payload);
   } catch (e) {
     res.status(500).json({ error: String(e && e.message ? e.message : e) });
   }
 }
-
