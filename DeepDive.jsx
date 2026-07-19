@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   Loader2,
@@ -30,6 +30,18 @@ function readLocal(key) {
     return null;
   }
 }
+function writeLocal(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (e) {
+    // ignore quota/private-mode errors
+  }
+}
+const LAST_SYMBOL_KEY = "stockdesk:lastSymbol:deepdive";
+// Deep Dive is the most expensive tab (options chain, fundamentals, macro tickers, insider data
+// all in one run) — a short cache makes accidental re-runs (tab switch, duplicate submit) free.
+const analysisCache = new Map();
+const CACHE_TTL_MS = 60000;
 
 // ============================== DATA FETCHING ==============================
 
@@ -57,7 +69,7 @@ async function fetchYahooOnce(symbol, range, interval) {
     // Server-side proxy — runs on Vercel, so there's no browser CORS restriction to hit, unlike
     // third-party proxies which are free, unauthenticated, and prone to being rate-limited.
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error(`proxy http ${res.status}`);
     return parseYahooOHLCV(await res.json());
   }
@@ -110,7 +122,7 @@ async function fetchOptionsChainRaw(symbol) {
     return await res.json();
   } catch (e) {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error("proxy http");
     return await res.json();
   }
@@ -647,6 +659,11 @@ export default function DeepDive() {
   const [result, setResult] = useState(null);
   const apiKeyRef = useRef("");
 
+  useEffect(() => {
+    const saved = readLocal(LAST_SYMBOL_KEY);
+    if (saved) setQuery(saved);
+  }, []);
+
   const handleAnalyze = async (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
@@ -654,6 +671,14 @@ export default function DeepDive() {
     setLoading(true);
     setError("");
     setResult(null);
+
+    const cached = analysisCache.get(symbol);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+      setResult(cached.data);
+      setLoading(false);
+      writeLocal(LAST_SYMBOL_KEY, symbol);
+      return;
+    }
     apiKeyRef.current = readLocal(APIKEY_KEY) || "";
     const apiKey = apiKeyRef.current;
 
@@ -980,13 +1005,16 @@ export default function DeepDive() {
       while (upside.length < 6) upside.push("See the News and Events tabs for company- and macro-specific catalysts not captured by this quantitative framework.");
       while (downside.length < 6) downside.push("See the News and Events tabs for company- and macro-specific risks not captured by this quantitative framework.");
 
-      setResult({
+      const resultData = {
         symbol, price, rating, overallScore, scores, weights,
         priceActionReadings, technicalReadings, volumeReadings, institutionalReadings, institutionalSentiment,
         optionsReadings, optionsData, fundamentalReadings, valuation, macroReadings,
         buckets, bucketLabels, targets, tradingPlan, upside: upside.slice(0, 10), downside: downside.slice(0, 10),
         z, atr, dataSource: dailyRes.source, hasKey: !!apiKey,
-      });
+      };
+      setResult(resultData);
+      analysisCache.set(symbol, { data: resultData, at: Date.now() });
+      writeLocal(LAST_SYMBOL_KEY, symbol);
     } catch (e) {
       setError(e?.message || `Couldn't complete the deep dive for ${symbol}. Try again in a moment.`);
     } finally {
@@ -1009,6 +1037,10 @@ export default function DeepDive() {
         .dd-btn:disabled { opacity: 0.6; }
         .dd-error { margin: 10px 24px 0; display: flex; gap: 8px; align-items: flex-start; background: rgba(232,105,122,0.1); border: 1px solid rgba(232,105,122,0.35); color: #F0919E; border-radius: 8px; padding: 12px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; }
         .dd-loading { display: flex; align-items: center; gap: 8px; padding: 60px 24px; justify-content: center; color: #888E99; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+        .dd-skel { background: linear-gradient(90deg, #1C1F25 25%, #24272E 37%, #1C1F25 63%); background-size: 400% 100%; animation: dd-shimmer 1.4s ease infinite; border-radius: 8px; border: 1px solid #2A2E36; }
+        .dd-skel-summary { height: 90px; margin-bottom: 22px; }
+        .dd-skel-card { height: 76px; }
+        @keyframes dd-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .dd-body { padding: 18px 24px 0; display: flex; flex-direction: column; gap: 22px; }
@@ -1080,9 +1112,17 @@ export default function DeepDive() {
         </div>
       )}
       {loading && (
-        <div className="dd-loading">
-          <Loader2 size={16} className="spin" /> pulling price history, options chain, fundamentals, and macro data — this takes longer than the quick Analyzer, and retries automatically if a data source is briefly unavailable…
-        </div>
+        <>
+          <div className="dd-loading">
+            <Loader2 size={16} className="spin" /> pulling price history, options chain, fundamentals, and macro data — this takes longer than the quick Analyzer, and retries automatically if a data source is briefly unavailable…
+          </div>
+          <div className="dd-body" style={{ paddingTop: 0 }}>
+            <div className="dd-skel dd-skel-summary" />
+            <div className="dd-grid">
+              {Array.from({ length: 8 }).map((_, i) => <div className="dd-skel dd-skel-card" key={i} />)}
+            </div>
+          </div>
+        </>
       )}
 
       {result && !loading && (

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   Loader2,
@@ -30,6 +30,16 @@ function readLocal(key) {
     return null;
   }
 }
+function writeLocal(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (e) {
+    // ignore quota/private-mode errors
+  }
+}
+const LAST_SYMBOL_KEY = "stockdesk:lastSymbol:invest";
+const analysisCache = new Map();
+const CACHE_TTL_MS = 60000;
 
 // ============================== DATA FETCHING ==============================
 
@@ -55,7 +65,7 @@ async function fetchYahooOnce(symbol, range, interval) {
     return parseYahooOHLCV(await res.json());
   } catch (e) {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error(`proxy http ${res.status}`);
     return parseYahooOHLCV(await res.json());
   }
@@ -284,6 +294,11 @@ export default function Invest() {
   const [result, setResult] = useState(null);
   const apiKeyRef = useRef("");
 
+  useEffect(() => {
+    const saved = readLocal(LAST_SYMBOL_KEY);
+    if (saved) setQuery(saved);
+  }, []);
+
   const handleAnalyze = async (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
@@ -291,6 +306,15 @@ export default function Invest() {
     setLoading(true);
     setError("");
     setResult(null);
+
+    const cached = analysisCache.get(symbol);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+      setResult(cached.data);
+      setLoading(false);
+      writeLocal(LAST_SYMBOL_KEY, symbol);
+      return;
+    }
+
     apiKeyRef.current = readLocal(APIKEY_KEY) || "";
     const apiKey = apiKeyRef.current;
 
@@ -598,7 +622,7 @@ export default function Invest() {
       }
       if (!pullbackReasons.length) pullbackReasons.push("Data is too limited to give a confident view either way — treat this as informational only.");
 
-      setResult({
+      const resultData = {
         symbol, price, rating, totalScore,
         scores: { financial: scoreFinancial, growth: scoreGrowth, profitability: scoreProfitability, valuation: scoreValuation, competitive: scoreCompetitive, institutional: scoreInstitutional, technical: scoreTechnical },
         financialReadings, growthReadings, managementReadings, competitiveReadings, valuationReadings, valuationVerdict,
@@ -606,7 +630,10 @@ export default function Invest() {
         fairValue, expectedAnnualReturn, confidenceLevel, catalysts: catalysts.slice(0, 6), risks: risks.slice(0, 6),
         reasonsToBuy, reasonsNotToBuy, accumulateVerdict, pullbackReasons,
         peerSnaps,
-      });
+      };
+      setResult(resultData);
+      analysisCache.set(symbol, { data: resultData, at: Date.now() });
+      writeLocal(LAST_SYMBOL_KEY, symbol);
     } catch (e) {
       setError(e?.message || `Couldn't complete the investment analysis for ${symbol}. Try again in a moment.`);
     } finally {
@@ -629,6 +656,10 @@ export default function Invest() {
         .iv-btn:disabled { opacity: 0.6; }
         .iv-error { margin: 10px 24px 0; display: flex; gap: 8px; align-items: flex-start; background: rgba(232,105,122,0.1); border: 1px solid rgba(232,105,122,0.35); color: #F0919E; border-radius: 8px; padding: 12px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.5; }
         .iv-loading { display: flex; align-items: center; gap: 8px; padding: 60px 24px; justify-content: center; color: #888E99; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+        .iv-skel { background: linear-gradient(90deg, #1C1F25 25%, #24272E 37%, #1C1F25 63%); background-size: 400% 100%; animation: iv-shimmer 1.4s ease infinite; border-radius: 8px; border: 1px solid #2A2E36; }
+        .iv-skel-summary { height: 90px; margin: 0 24px 22px; }
+        .iv-skel-card { height: 76px; }
+        @keyframes iv-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .iv-body { padding: 18px 24px 0; display: flex; flex-direction: column; gap: 22px; }
@@ -690,9 +721,15 @@ export default function Invest() {
         </div>
       )}
       {loading && (
-        <div className="iv-loading">
-          <Loader2 size={16} className="spin" /> pulling quarterly financials, earnings history, peers, and long-term price data…
-        </div>
+        <>
+          <div className="iv-loading">
+            <Loader2 size={16} className="spin" /> pulling quarterly financials, earnings history, peers, and long-term price data…
+          </div>
+          <div className="iv-skel iv-skel-summary" />
+          <div className="iv-grid" style={{ padding: "0 24px" }}>
+            {Array.from({ length: 8 }).map((_, i) => <div className="iv-skel iv-skel-card" key={i} />)}
+          </div>
+        </>
       )}
 
       {result && !loading && (

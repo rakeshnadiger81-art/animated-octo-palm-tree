@@ -106,7 +106,7 @@ async function fetchFFWeek(which) {
     return await res.json();
   } catch (e) {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error(`proxy http ${res.status}`);
     return await res.json();
   }

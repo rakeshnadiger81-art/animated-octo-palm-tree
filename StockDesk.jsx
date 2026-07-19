@@ -162,7 +162,7 @@ async function fetchQuoteYahooProxied(symbol) {
     symbol
   )}?range=1d&interval=5m`;
   const proxyUrl = `/api/proxy?url=${encodeURIComponent(target)}`;
-  const res = await fetchWithTimeout(proxyUrl);
+  const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
   if (!res.ok) throw new Error(`yahoo-proxy http ${res.status}`);
   const data = await res.json();
   return { ...parseYahooChart(data, symbol), live: true, source: "yahoo-proxy" };
@@ -176,14 +176,44 @@ async function fetchQuoteYahoo(symbol) {
   }
 }
 
+async function fetchFinnhubQuoteOnly(symbol, apiKey) {
+  const res = await fetchWithTimeout(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${apiKey}`);
+  if (!res.ok) throw new Error("finnhub quote failed");
+  const q = await res.json();
+  if ((q.c === 0 || q.c === undefined) && (q.pc === 0 || q.pc === undefined)) throw new Error("invalid symbol");
+  return q.c;
+}
+
 // Always resolves — never throws, never hangs past ~3x FETCH_TIMEOUT_MS.
 // Priority: Yahoo (direct, then proxied) -> Finnhub if a key is set -> simulated as last resort.
+// When both Yahoo and a Finnhub key are available, cross-checks the two prices — catches silent
+// data bugs (a stale cache, a parsing mistake, a bad field mapping) that a single source alone
+// wouldn't reveal, since a single wrong-but-plausible number looks the same as a right one.
 async function getQuote(symbol, apiKey) {
+  let yahooResult = null;
   try {
-    return await fetchQuoteYahoo(symbol);
+    yahooResult = await fetchQuoteYahoo(symbol);
   } catch (e) {
     // fall through to Finnhub backup
   }
+
+  if (yahooResult) {
+    if (apiKey) {
+      try {
+        const finnhubPrice = await fetchFinnhubQuoteOnly(symbol, apiKey);
+        if (finnhubPrice) {
+          const diffPct = Math.abs((yahooResult.price - finnhubPrice) / finnhubPrice) * 100;
+          if (diffPct > 1.5) {
+            yahooResult.priceMismatch = { finnhubPrice, diffPct };
+          }
+        }
+      } catch (e) {
+        // cross-check itself failing isn't critical — don't block the quote on it
+      }
+    }
+    return yahooResult;
+  }
+
   if (apiKey) {
     try {
       return await fetchQuoteFinnhub(symbol, apiKey);
@@ -484,6 +514,7 @@ export default function StockDesk() {
         .tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 3px; }
         .tag.live { color: #5FCBA0; background: rgba(95,203,160,0.12); }
         .tag.sim { color: #C99A4B; background: rgba(201,154,75,0.12); }
+        .tag.mismatch { color: #E8697A; background: rgba(232,105,122,0.14); cursor: help; }
         .empty { padding: 60px 24px; text-align: center; color: #5A5F68; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
         .loading-row { display:flex; align-items:center; gap:8px; padding: 60px 24px; justify-content:center; color:#888E99; font-family:'IBM Plex Mono', monospace; font-size:13px; }
         .spin { animation: spin 1s linear infinite; }
@@ -621,6 +652,14 @@ export default function StockDesk() {
                 <div className="card-foot">
                   <span className={`tag ${s.live ? "live" : "sim"}`}>{s.live ? "LIVE" : "SIM"}</span>
                   <span className="name" style={{ maxWidth: "none" }}>{SOURCE_LABEL[s.source]}</span>
+                  {s.priceMismatch && (
+                    <span
+                      className="tag mismatch"
+                      title={`Yahoo shows $${fmt(s.price)}, Finnhub shows $${fmt(s.priceMismatch.finnhubPrice)} — a ${fmt(s.priceMismatch.diffPct, 1)}% gap. Could be a stale quote from one source.`}
+                    >
+                      ⚠ {fmt(s.priceMismatch.diffPct, 1)}% gap
+                    </span>
+                  )}
                 </div>
               </div>
             );

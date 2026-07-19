@@ -21,6 +21,14 @@ function readLocal(key) {
     return null;
   }
 }
+function writeLocal(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (e) {
+    // ignore quota/private-mode errors
+  }
+}
+const LAST_SYMBOL_KEY = "stockdesk:lastSymbol:news";
 
 const CNBC_FEEDS = {
   top: { url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", label: "Top News" },
@@ -58,7 +66,7 @@ async function fetchRss(url, sourceLabel) {
     return parseRss(await res.text(), sourceLabel);
   } catch (e) {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error(`proxy http ${res.status}`);
     return parseRss(await res.text(), sourceLabel);
   }
@@ -126,6 +134,11 @@ export default function News() {
     loadCategory(category);
   }, [category, loadCategory]);
 
+  useEffect(() => {
+    const saved = readLocal(LAST_SYMBOL_KEY);
+    if (saved) setTickerQuery(saved);
+  }, []);
+
   const handleTickerSearch = async (e) => {
     e.preventDefault();
     const symbol = tickerQuery.trim().toUpperCase();
@@ -142,6 +155,7 @@ export default function News() {
       items.sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0));
       setArticles(items);
       setTickerMode(true);
+      writeLocal(LAST_SYMBOL_KEY, symbol);
     } catch (e) {
       setError(`Couldn't pull news for ${symbol}. Check the ticker and your Finnhub key.`);
     } finally {

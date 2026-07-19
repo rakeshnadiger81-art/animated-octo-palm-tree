@@ -109,11 +109,11 @@ export default function Heatmap() {
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
 
-  const load = async () => {
+  const load = async (forceRefresh = false) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetchWithTimeout("/api/heatmap");
+      const res = await fetchWithTimeout(forceRefresh ? "/api/heatmap?refresh=1" : "/api/heatmap");
       if (!res.ok) throw new Error(`http ${res.status}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -256,9 +256,9 @@ export default function Heatmap() {
       <div className="hm-header">
         <div>
           <h1>HEATMAP</h1>
-          <p>Sector-grouped market heatmap — {"~"}156 large-cap names across 13 sectors, built fresh on demand</p>
+          <p>Sector-grouped market heatmap — {"~"}130 large-cap names across 13 sectors, built fresh on demand</p>
         </div>
-        <button className="hm-btn" onClick={load} disabled={loading}>
+        <button className="hm-btn" onClick={() => load(!!data)} disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
           {loading ? "Building…" : data ? "Refresh Heatmap" : "Load Heatmap"}
         </button>
@@ -272,7 +272,7 @@ export default function Heatmap() {
       )}
       {loading && (
         <div className="hm-loading">
-          <Loader2 size={16} className="spin" /> fetching ~160 tickers server-side (indices + 13 sectors) — this can take 15–25 seconds…
+          <Loader2 size={16} className="spin" /> fetching ~135 tickers server-side (indices + 13 sectors) — usually 5–10 seconds…
         </div>
       )}
       {!data && !loading && !error && (
@@ -281,6 +281,17 @@ export default function Heatmap() {
 
       {data && !loading && (
         <div className="hm-body">
+          {data.sessionTime && (() => {
+            const sessionDate = new Date(data.sessionTime);
+            const now = new Date();
+            const isToday = sessionDate.toDateString() === now.toDateString();
+            const label = sessionDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+            return (
+              <div className="hm-session-banner" style={{ background: isToday ? "rgba(95,203,160,0.1)" : "rgba(255,180,84,0.1)", border: `1px solid ${isToday ? "rgba(95,203,160,0.3)" : "rgba(255,180,84,0.3)"}`, borderRadius: 8, padding: "10px 14px", fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: isToday ? "#5FCBA0" : "#E0B872" }}>
+                {isToday ? `Live session — ${label}` : `Markets closed today — showing the most recent session: ${label}`}
+              </div>
+            );
+          })()}
           <div className="hm-sources" style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 10.5, color: "#5A5F68" }}>
             {data.totalLoaded}/{data.totalRequested} tickers loaded · generated {new Date(data.generatedAt).toLocaleTimeString()}
           </div>
@@ -303,7 +314,7 @@ export default function Heatmap() {
               <div className="hm-breadth-card"><div className="hm-breadth-label">Down Volume</div><div className="hm-breadth-val" style={{ color: "#E8697A" }}>{fmtVol(downVolume)}</div></div>
             </div>
             <div className="hm-card-note" style={{ fontSize: 11, color: "#888E99", marginTop: 8 }}>
-              Advance/decline and volume figures are based on this heatmap's ~156-stock large-cap sample, not the full exchange-wide tape (which requires a paid market-internals feed).
+              Advance/decline and volume figures are based on this heatmap's ~130-stock large-cap sample, not the full exchange-wide tape (which requires a paid market-internals feed).
             </div>
           </div>
 
@@ -359,7 +370,7 @@ export default function Heatmap() {
             <div className="hm-unavailable-box">
               <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>
-                Dark pool activity, large block trades, unusual options activity, gamma exposure (GEX), and dealer positioning aren't available at market-wide scale from free data sources — running real options-chain analysis across ~156 tickers isn't practical here. For a real, computed GEX approximation, max pain, and options walls on a single ticker, use the <strong>Deep Dive</strong> tab.
+                Dark pool activity, large block trades, unusual options activity, gamma exposure (GEX), and dealer positioning aren't available at market-wide scale from free data sources — running real options-chain analysis across ~130 tickers isn't practical here. For a real, computed GEX approximation, max pain, and options walls on a single ticker, use the <strong>Deep Dive</strong> tab.
               </span>
             </div>
           </div>
@@ -392,7 +403,7 @@ export default function Heatmap() {
           </div>
 
           <div className="hm-disclaimer">
-            <strong>What's real vs. modeled:</strong> every price, % change, volume, relative volume, and 52-week high/low above is live data for the ticker shown. The sector universe (which ~12 tickers represent each sector) is a curated snapshot, not a live "top 20 by market cap" ranking. Advance/decline, breadth, and up/down volume are computed from this ~156-stock sample, not the full market. Institutional/options-flow data is explicitly marked unavailable rather than estimated. Risk-on/risk-off, swing candidates, and accumulation candidates are this tool's own transparent screening logic over real data — not predictions, not personalized advice, and not a substitute for a licensed financial advisor.
+            <strong>What's real vs. modeled:</strong> every price, % change, volume, relative volume, and 52-week high/low above is live data for the ticker shown. The sector universe (which ~10 tickers represent each sector) is a curated snapshot, not a live "top 20 by market cap" ranking. Advance/decline, breadth, and up/down volume are computed from this ~130-stock sample, not the full market. Institutional/options-flow data is explicitly marked unavailable rather than estimated. Risk-on/risk-off, swing candidates, and accumulation candidates are this tool's own transparent screening logic over real data — not predictions, not personalized advice, and not a substitute for a licensed financial advisor.
           </div>
         </div>
       )}

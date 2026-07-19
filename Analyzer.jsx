@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   BarChart,
   Bar,
@@ -39,6 +39,19 @@ function readLocal(key) {
     return null;
   }
 }
+function writeLocal(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (e) {
+    // ignore quota/private-mode errors
+  }
+}
+const LAST_SYMBOL_KEY = "stockdesk:lastSymbol:analyzer";
+// Short-TTL client-side cache: re-analyzing the same ticker within a minute (easy to do by
+// accident — switching tabs and back, or a duplicate submit) reuses the last result instead of
+// refiring 10+ requests.
+const analysisCache = new Map();
+const CACHE_TTL_MS = 60000;
 
 // ---------- data fetching: Yahoo direct -> Yahoo via proxy -> Finnhub backup ----------
 
@@ -71,7 +84,7 @@ async function fetchYahoo(symbol, range, interval) {
     return parseYahooOHLCV(await res.json());
   } catch (e) {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    const res = await fetchWithTimeout(proxyUrl);
+    const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
     if (!res.ok) throw new Error(`proxy http ${res.status}`);
     return parseYahooOHLCV(await res.json());
   }
@@ -178,7 +191,7 @@ async function fetchImpliedVolatility(symbol, currentPrice) {
   } catch (e) {
     try {
       const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-      const res = await fetchWithTimeout(proxyUrl);
+      const res = await fetchWithTimeout(proxyUrl, { headers: { "x-app-proxy": "stockdesk" } });
       if (!res.ok) throw new Error("proxy http error");
       const parsed = tryParse(await res.json());
       return parsed;
@@ -651,6 +664,11 @@ export default function Analyzer() {
   const [result, setResult] = useState(null);
   const apiKeyRef = useRef(readLocal(APIKEY_KEY) || "");
 
+  useEffect(() => {
+    const saved = readLocal(LAST_SYMBOL_KEY);
+    if (saved) setQuery(saved);
+  }, []);
+
   const handleAnalyze = async (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
@@ -658,6 +676,15 @@ export default function Analyzer() {
     setLoading(true);
     setError("");
     setResult(null);
+
+    const cached = analysisCache.get(symbol);
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+      setResult(cached.data);
+      setLoading(false);
+      writeLocal(LAST_SYMBOL_KEY, symbol);
+      return;
+    }
+
     apiKeyRef.current = readLocal(APIKEY_KEY) || "";
     const apiKey = apiKeyRef.current;
 
@@ -756,7 +783,7 @@ export default function Analyzer() {
         };
       }
 
-      setResult({
+      const resultData = {
         symbol,
         price,
         signal,
@@ -778,7 +805,10 @@ export default function Analyzer() {
         relVol,
         dataSource: dailyRes.source,
         intradaySource: intradayRes?.source ?? null,
-      });
+      };
+      setResult(resultData);
+      analysisCache.set(symbol, { data: resultData, at: Date.now() });
+      writeLocal(LAST_SYMBOL_KEY, symbol);
     } catch (e) {
       setError(
         e?.message ||
