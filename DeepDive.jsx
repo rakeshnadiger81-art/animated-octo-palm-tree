@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import HelpModal from "./HelpModal.jsx";
+import { matchGlossary } from "./indicatorGlossary.js";
 import {
   Search,
   Loader2,
@@ -9,6 +11,7 @@ import {
   ArrowUp,
   ArrowDown,
   Info,
+  HelpCircle,
 } from "lucide-react";
 
 const FETCH_TIMEOUT_MS = 10000;
@@ -615,14 +618,23 @@ function probBelow(target, price, move) {
 const TAG_ICON = { bullish: TrendingUp, bearish: TrendingDown, neutral: Minus, unavailable: Info };
 
 function ReadingGrid({ readings }) {
+  const [activeHelp, setActiveHelp] = useState(null);
   return (
     <div className="dd-grid">
       {readings.map((r, i) => {
         const Icon = TAG_ICON[r.tag] || Minus;
+        const glossary = matchGlossary(r.name);
         return (
           <div className="dd-card" key={i}>
             <div className="dd-card-top">
-              <span className="dd-card-name">{r.name}</span>
+              <span className="dd-card-name">
+                {r.name}
+                {glossary && (
+                  <button className="dd-help-btn" onClick={() => setActiveHelp(glossary)} aria-label={`What is ${r.name}?`}>
+                    <HelpCircle size={12} />
+                  </button>
+                )}
+              </span>
               <span className={`dd-tag-icon ${r.tag}`}>
                 <Icon size={13} />
               </span>
@@ -632,6 +644,7 @@ function ReadingGrid({ readings }) {
           </div>
         );
       })}
+      <HelpModal entry={activeHelp} onClose={() => setActiveHelp(null)} />
     </div>
   );
 }
@@ -1048,7 +1061,9 @@ export default function DeepDive() {
         .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
         .dd-card { background: #1C1F25; border: 1px solid #2A2E36; border-radius: 8px; padding: 12px 13px; }
         .dd-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-        .dd-card-name { font-family: 'IBM Plex Sans Condensed', sans-serif; font-weight: 600; font-size: 12px; }
+        .dd-card-name { font-family: 'IBM Plex Sans Condensed', sans-serif; font-weight: 600; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+        .dd-help-btn { background: transparent; border: none; color: #5A5F68; cursor: pointer; padding: 0; display: inline-flex; align-items: center; }
+        .dd-help-btn:hover { color: #FFB454; }
         .dd-card-val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #ADB1B9; margin-top: 3px; }
         .dd-card-note { font-size: 11px; color: #888E99; margin-top: 5px; line-height: 1.4; }
         .dd-tag-icon.bullish { color: #5FCBA0; } .dd-tag-icon.bearish { color: #E8697A; } .dd-tag-icon.neutral { color: #C99A4B; } .dd-tag-icon.unavailable { color: #5A5F68; }

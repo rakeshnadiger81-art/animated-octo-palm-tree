@@ -3,6 +3,13 @@
 A live stock watchlist dashboard — search to add tickers, see price, change, and a sparkline for
 each, with an optional Finnhub API key for reliable real-time quotes.
 
+## Indicator help
+
+Every indicator/metric card in Analyzer, Deep Dive, and Invest has a small "?" icon next to its
+name — tap it for a plain-English explanation of what the indicator is and how it tends to
+relate to price. Definitions live in `indicatorGlossary.js` (shared across all three tabs) and
+render via `HelpModal.jsx`.
+
 ## Robustness features
 
 - **Error boundaries** — each tab is isolated; a crash in one tab shows a recoverable error

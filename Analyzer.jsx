@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import HelpModal from "./HelpModal.jsx";
+import { matchGlossary } from "./indicatorGlossary.js";
 import {
   BarChart,
   Bar,
@@ -17,6 +19,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
+  HelpCircle,
 } from "lucide-react";
 
 const FETCH_TIMEOUT_MS = 8000;
@@ -662,6 +665,7 @@ export default function Analyzer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [activeHelp, setActiveHelp] = useState(null);
   const apiKeyRef = useRef(readLocal(APIKEY_KEY) || "");
 
   useEffect(() => {
@@ -857,7 +861,9 @@ export default function Analyzer() {
         .an-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
         .an-card { background: #1C1F25; border: 1px solid #2A2E36; border-radius: 8px; padding: 13px 14px; }
         .an-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-        .an-card-name { font-family: 'IBM Plex Sans Condensed', sans-serif; font-weight: 600; font-size: 12.5px; }
+        .an-card-name { font-family: 'IBM Plex Sans Condensed', sans-serif; font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 4px; }
+        .an-help-btn { background: transparent; border: none; color: #5A5F68; cursor: pointer; padding: 0; display: inline-flex; align-items: center; }
+        .an-help-btn:hover { color: #FFB454; }
         .an-card-val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #ADB1B9; }
         .an-card-note { font-size: 11.5px; color: #888E99; margin-top: 6px; line-height: 1.4; }
         .an-tag-icon { display: inline-flex; }
@@ -1010,10 +1016,18 @@ export default function Analyzer() {
             <div className="an-grid" style={{ marginTop: 8 }}>
               {result.readings.map((r, i) => {
                 const Icon = TAG_ICON[r.tag];
+                const glossary = matchGlossary(r.name);
                 return (
                   <div className="an-card" key={i}>
                     <div className="an-card-top">
-                      <span className="an-card-name">{r.name}</span>
+                      <span className="an-card-name">
+                        {r.name}
+                        {glossary && (
+                          <button className="an-help-btn" onClick={() => setActiveHelp(glossary)} aria-label={`What is ${r.name}?`}>
+                            <HelpCircle size={12} />
+                          </button>
+                        )}
+                      </span>
                       <span className={`an-tag-icon ${r.tag}`}>
                         <Icon size={14} />
                       </span>
@@ -1111,6 +1125,7 @@ export default function Analyzer() {
           </div>
         </div>
       )}
+      <HelpModal entry={activeHelp} onClose={() => setActiveHelp(null)} />
     </div>
   );
 }
