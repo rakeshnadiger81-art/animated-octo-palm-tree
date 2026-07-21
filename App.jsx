@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
-import { LayoutGrid, LineChart, Newspaper, CalendarDays, Microscope, Landmark, Grid3x3, WifiOff, Activity, Loader2, X, CheckCircle2, XCircle } from "lucide-react";
+import { LayoutGrid, LineChart, Newspaper, CalendarDays, Microscope, Landmark, Grid3x3, CalendarClock, WifiOff, Activity, Loader2, X, CheckCircle2, XCircle } from "lucide-react";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 
 // Lazy-loaded: each tab only downloads its JS when first opened, instead of all seven shipping
@@ -9,6 +9,7 @@ const StockDesk = lazy(() => import("./StockDesk.jsx"));
 const Analyzer = lazy(() => import("./Analyzer.jsx"));
 const News = lazy(() => import("./News.jsx"));
 const Events = lazy(() => import("./Events.jsx"));
+const Earnings = lazy(() => import("./Earnings.jsx"));
 const DeepDive = lazy(() => import("./DeepDive.jsx"));
 const Invest = lazy(() => import("./Invest.jsx"));
 const Heatmap = lazy(() => import("./Heatmap.jsx"));
@@ -21,6 +22,7 @@ const TABS = [
   { key: "heatmap", label: "Heatmap", icon: Grid3x3, Component: Heatmap },
   { key: "news", label: "News", icon: Newspaper, Component: News },
   { key: "events", label: "Events", icon: CalendarDays, Component: Events },
+  { key: "earnings", label: "Earnings", icon: CalendarClock, Component: Earnings },
 ];
 
 function TabLoadingFallback() {

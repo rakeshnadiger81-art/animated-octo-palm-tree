@@ -746,11 +746,31 @@ export default function Analyzer() {
       });
       const signal = signalFromScore(score);
 
-      // Daily target range: blend pivot R1/S1 with an ATR band around the prior close
-      const atrHigh = price + atr;
-      const atrLow = price - atr;
-      const dailyHigh = pivots ? (pivots.r1 + atrHigh) / 2 : atrHigh;
-      const dailyLow = pivots ? (pivots.s1 + atrLow) / 2 : atrLow;
+      // Daily target range: an ensemble of four independent, real methods — averaged together
+      // rather than leaning on any single one — then nudged by the composite technical score.
+      //
+      // Fix from the prior version: ATR is the *average total* high-low range for a day, so
+      // adding a full ATR on both sides of price (price+ATR, price-ATR) modeled a range of
+      // 2×ATR — roughly double what the stock's actual average range has been. Using ATR/2 on
+      // each side of a central reference point correctly targets a total span of ~1×ATR.
+      const center = vwapVal !== null ? price * 0.65 + vwapVal * 0.35 : price; // blend last price with today's VWAP (institutional reference) when available
+      const atrHalf = atr / 2;
+      const ivDailyMove = iv ? price * (iv / 100) * Math.sqrt(1 / 365) : null;
+
+      const highCandidates = [center + atrHalf];
+      const lowCandidates = [center - atrHalf];
+      if (pivots) { highCandidates.push(pivots.r1); lowCandidates.push(pivots.s1); }
+      if (bb) { highCandidates.push(bb.upper); lowCandidates.push(bb.lower); }
+      if (ivDailyMove) { highCandidates.push(price + ivDailyMove); lowCandidates.push(price - ivDailyMove); }
+
+      let dailyHigh = highCandidates.reduce((a, b) => a + b, 0) / highCandidates.length;
+      let dailyLow = lowCandidates.reduce((a, b) => a + b, 0) / lowCandidates.length;
+
+      // Nudge (not override) with the composite technical score, so a strongly bullish/bearish
+      // read skews the range slightly instead of always being perfectly symmetric.
+      const scoreTilt = Math.max(-1, Math.min(1, score / 6)) * (dailyHigh - dailyLow) * 0.12;
+      dailyHigh += scoreTilt;
+      dailyLow = Math.max(0.01, dailyLow + scoreTilt);
 
       // Weekly expected move from IV (or historical-vol proxy) and separately from ATR
       const weeklyMoveFromIV = iv ? price * (iv / 100) * Math.sqrt(ivExpiryDays / 365) : null;
@@ -959,6 +979,9 @@ export default function Analyzer() {
           <div className="an-sources">
             Daily data: {result.dataSource === "yahoo" ? "Yahoo" : "Finnhub"} · Intraday/VWAP: {result.intradaySource ? (result.intradaySource === "yahoo" ? "Yahoo" : "Finnhub") : "unavailable"} ·{" "}
             {result.ivIsProxy ? "IV: historical-vol proxy (options chain unavailable)" : "IV: live options chain"}
+          </div>
+          <div className="an-sources" style={{ marginTop: -4 }}>
+            Target High/Low: average of ATR-based volatility band, pivot R1/S1, Bollinger Bands, and options-implied daily move (whichever are available), centered on a price/VWAP blend and nudged by the composite score — not a single-formula estimate.
           </div>
 
           {result.weeklyRange && (
