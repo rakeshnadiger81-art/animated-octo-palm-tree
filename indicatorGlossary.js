@@ -222,6 +222,54 @@ export const GLOSSARY = {
     term: "Daily Target Range",
     body: "A blend of pivot resistance/support and an ATR-based volatility band around the current price, giving a rough expected range for the current session.",
   },
+  adr: {
+    term: "ADR (Average Daily Range)",
+    body: "The average size of a stock's daily high-to-low range over the last 20 sessions, expressed in dollars. Unlike ATR (which factors in overnight gaps via true range), ADR looks at the regular session range only — many intraday traders use it as a simpler, more direct estimate of \"how far this stock typically moves in a day.\"",
+  },
+  camarilla: {
+    term: "Camarilla Levels",
+    body: "A set of support/resistance levels calculated from the prior day's high, low, and close using a specific formula originally developed for bond trading, now widely used intraday. R3/S3 are commonly treated as the expected boundary of the day's range (a reversal zone), while R4/S4 further out are treated as breakout levels if decisively broken.",
+  },
+  keltner: {
+    term: "Keltner Channels",
+    body: "Similar to Bollinger Bands, but the channel width is based on ATR instead of standard deviation, and it's centered on an EMA instead of a simple moving average. Price pressing the upper/lower channel suggests an extended move relative to recent volatility; Keltner Channels tend to be smoother than Bollinger Bands since ATR reacts less sharply to single outlier days.",
+  },
+  futures: {
+    term: "Index Futures (ES / NQ / YM)",
+    body: "E-mini S&P 500 (ES), Nasdaq-100 (NQ), and Dow (YM) futures trade nearly 24 hours a day, including before the stock market opens. Their overnight move is one of the most-watched early signals for how the broad market — and by extension, most individual stocks — is likely to open.",
+  },
+  premarket: {
+    term: "Premarket Movement",
+    body: "How a stock has traded in the hours before the regular 9:30am ET session opens, typically on lower volume than regular hours. A significant premarket move (especially on above-average premarket volume) often carries through into the opening range, though premarket moves can also reverse once regular-session liquidity arrives.",
+  },
+  openInterestStrike: {
+    term: "Open Interest by Strike",
+    body: "How many outstanding options contracts exist at each strike price. Strikes with unusually large open interest often correspond to price levels where significant hedging activity is concentrated, which can make them act as informal support/resistance as expiration approaches.",
+  },
+  econNews: {
+    term: "Economic News Today",
+    body: "Scheduled macro data releases or Fed events happening today. High-impact releases (CPI, jobs reports, FOMC decisions) can move the entire market — and by extension most individual stocks — independent of anything company-specific.",
+  },
+  earningsProximity: {
+    term: "Earnings Calendar Proximity",
+    body: "Whether this company is scheduled to report earnings very soon. Stocks often see reduced volume and tighter ranges in the days immediately before earnings as participants wait for the report, then much wider ranges immediately after.",
+  },
+  newsSentiment: {
+    term: "News Sentiment",
+    body: "An aggregate read on whether recent news coverage of a company skews positive or negative. Useful as a rough gauge of the prevailing narrative, though sentiment scores are backward-looking (based on published articles) and can lag fast-moving situations.",
+  },
+  sectorPerf: {
+    term: "Sector Performance",
+    body: "How the stock's broader sector is trading today, via its sector ETF. A stock moving with its sector suggests the move is macro/industry-driven; a stock diverging sharply from its sector suggests something company-specific is happening.",
+  },
+  darkPool: {
+    term: "Dark Pool Levels",
+    body: "Price levels where large trades have occurred on private exchanges (dark pools) that don't show up on the public order book until after execution. These can reveal significant institutional positioning, but real-time dark pool print data requires a paid specialized feed — it isn't available from free market-data APIs.",
+  },
+  institutionalFlow: {
+    term: "Institutional Buying/Selling",
+    body: "Real-time institutional order flow (which large funds are buying or selling right now) isn't published anywhere in real time — the closest free, legitimate signals are disclosed insider transactions (Form 4 filings, which lag by days) and analyst sentiment, both shown elsewhere in this report where available.",
+  },
 };
 
 // Keyword-based lookup so the same glossary works across files without every single reading
@@ -276,6 +324,18 @@ export function matchGlossary(name) {
   if (n.includes("gap")) return GLOSSARY.gap;
   if (n.includes("weekly price range")) return GLOSSARY.weeklyRange;
   if (n.includes("target")) return GLOSSARY.dailyTarget;
+  if (n.includes("adr") || n.includes("average daily range")) return GLOSSARY.adr;
+  if (n.includes("camarilla")) return GLOSSARY.camarilla;
+  if (n.includes("keltner")) return GLOSSARY.keltner;
+  if (n.includes("futures")) return GLOSSARY.futures;
+  if (n.includes("premarket")) return GLOSSARY.premarket;
+  if (n.includes("open interest")) return GLOSSARY.openInterestStrike;
+  if (n.includes("economic news") || n.includes("econ news")) return GLOSSARY.econNews;
+  if (n.includes("earnings calendar") || n.includes("earnings proximity")) return GLOSSARY.earningsProximity;
+  if (n.includes("news sentiment")) return GLOSSARY.newsSentiment;
+  if (n.includes("sector performance") || n.includes("sector perf")) return GLOSSARY.sectorPerf;
+  if (n.includes("dark pool")) return GLOSSARY.darkPool;
+  if (n.includes("institutional buying") || n.includes("institutional selling") || n.includes("institutional flow")) return GLOSSARY.institutionalFlow;
   if (n.includes("trend")) return GLOSSARY.trend;
   if (n.includes("pressure")) return GLOSSARY.pressure;
   if (n.includes("accumulation") || n.includes("distribution")) return GLOSSARY.accDist;
