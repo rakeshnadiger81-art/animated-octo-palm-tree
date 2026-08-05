@@ -10,6 +10,22 @@ name — tap it for a plain-English explanation of what the indicator is and how
 relate to price. Definitions live in `indicatorGlossary.js` (shared across all three tabs) and
 render via `HelpModal.jsx`.
 
+## Cross-tab navigation & ticker autocomplete
+
+- **Click any stock to analyze it** — tapping a stock card in Watchlist, a tile/list entry in
+  Heatmap, or a ticker chip (or a search result) in Earnings jumps straight to the Analyzer tab
+  and runs the analysis automatically. Implemented via `App.jsx` holding a small
+  `pendingAnalyze` state that's passed down as a prop; `Analyzer.jsx` watches it and re-runs
+  even if the same ticker is clicked twice in a row.
+- **Ticker autocomplete everywhere** — every ticker input (Watchlist add, Analyzer, Deep Dive,
+  Invest, News company search, Earnings search) now suggests matching symbols as you type,
+  including by company name (typing "oracle" surfaces ORCL). Backed by Yahoo's public
+  autocomplete endpoint via `tickerSearch.js`, rendered by the shared `TickerSearchInput.jsx`
+  component (debounced, drops into each tab's existing search box with no per-tab CSS changes
+  needed). Selecting a suggestion auto-runs the tab's action (analyze/search) except in
+  Watchlist's "add" field, where it just fills the input — adding to a persisted watchlist
+  stays an explicit, separate click.
+
 ## Robustness features
 
 - **Error boundaries** — each tab is isolated; a crash in one tab shows a recoverable error
@@ -43,9 +59,20 @@ web UI simple, even from a phone:
 
 - `App.jsx` — tab switcher between Watchlist, Analyzer, Deep Dive, News, and Events
 - `StockDesk.jsx` — the watchlist dashboard (search, add tickers, live prices, sparklines)
-- `Analyzer.jsx` — quick technical read: ATR/Pivots/VWAP/Volume Profile/RSI+MACD/EMAs/Bollinger/
-  Fibonacci/IV/Relative Volume, composite buy/sell/hold signal, daily target, weekly price range,
-  and a weekly options structure idea.
+- `Analyzer.jsx` — institutional-quant intraday range predictor for *today's* session, rebuilt
+  around 30 real inputs: previous day OHLCV, premarket move (via Yahoo's actual pre/regular
+  session boundaries), overnight index futures (ES/NQ/YM), ATR(14), ADR(20), session VWAP,
+  Volume Profile (POC/VAH/VAL), Pivot Points, Camarilla levels, Fibonacci, the full 5/10/20 EMA
+  and 50/100/200 SMA ladder, Bollinger Bands, Keltner Channels, RSI, MACD, ADX, Stochastic RSI,
+  OBV, Chaikin Money Flow, options GEX/max pain/open-interest-by-strike/implied move (from
+  Yahoo's live options chain), relative strength vs SPY, sector performance, today's high/medium
+  US economic releases (ForexFactory), earnings-date proximity, and news sentiment (both via
+  Finnhub where a key is set). Ends in a strict-format "Final Call" — bias, expected daily range,
+  most-likely closing range, 3 support/3 resistance levels, a probability table (touch/break
+  odds via a disclosed normal-distribution approximation), expected volatility, entry/target/
+  stop, confidence score, and a <150-word explanation — with every indicator card carrying a
+  help icon and plain-English definition. Dark pool levels and true real-time institutional flow
+  are marked unavailable rather than estimated, since no free API provides them.
 - `DeepDive.jsx` — full institutional-style research report: price action (trend/structure/S-R/
   gaps), 17 technical indicators, volume analysis, institutional activity (insider transactions +
   analyst trend where a Finnhub key is set; dark pool/13F/block trades explicitly marked
@@ -82,6 +109,11 @@ web UI simple, even from a phone:
   a curated, verified date list plus a live ForexFactory economic calendar feed, each event
   paired with a plain-English note on how a better/worse-than-expected result typically moves
   markets.
+- `Earnings.jsx` — upcoming earnings dates for the next 30 days across a curated list of
+  well-known large-cap tickers, plus a per-ticker search: finds the next officially confirmed
+  date if Finnhub has one, or estimates one from the company's historical reporting cadence
+  (gap between its last two reports) if not yet announced — clearly labeled as an estimate,
+  not a confirmed date. Requires a Finnhub API key.
 - `api/proxy.js` — a Vercel serverless function that proxies requests to an allowlist of
   data-provider hosts (Yahoo Finance, CNBC, ForexFactory, Finnhub) server-side. Every tab tries
   a direct browser fetch first, and falls back to `/api/proxy?url=...` if that's blocked by

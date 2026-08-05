@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2, AlertTriangle, CalendarClock, Sun, Moon, Clock3, Info } from "lucide-react";
+import TickerSearchInput from "./TickerSearchInput.jsx";
 
 const FETCH_TIMEOUT_MS = 12000;
 const APIKEY_KEY = "stockdesk:finnhub_key";
@@ -88,7 +89,7 @@ const HOUR_LABEL = {
   dmh: { label: "During Market Hours", Icon: Clock3 },
 };
 
-export default function Earnings() {
+export default function Earnings({ onAnalyzeSymbol }) {
   const [calendar, setCalendar] = useState([]);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
   const [calendarError, setCalendarError] = useState("");
@@ -140,9 +141,15 @@ export default function Earnings() {
     if (saved) setQuery(saved);
   }, [loadCalendar]);
 
-  const handleSearch = async (e) => {
+  const handleSearch = (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
+    if (!symbol) return;
+    runSearch(symbol);
+  };
+
+  const runSearch = async (rawSymbol) => {
+    const symbol = rawSymbol.trim().toUpperCase();
     if (!symbol) return;
     apiKeyRef.current = readLocal(APIKEY_KEY) || "";
     if (!apiKeyRef.current) {
@@ -270,7 +277,13 @@ export default function Earnings() {
       <form className="er-search-row" onSubmit={handleSearch}>
         <div className="er-search-box">
           <Search size={14} color="#5A5F68" />
-          <input placeholder="Look up a ticker, e.g. AAPL" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={10} />
+          <TickerSearchInput
+            value={query}
+            onChange={setQuery}
+            onSelect={(symbol) => runSearch(symbol)}
+            placeholder="Look up a ticker or company name, e.g. AAPL or Oracle"
+            maxLength={10}
+          />
         </div>
         <button className="er-btn" type="submit" disabled={searchLoading}>
           {searchLoading ? <Loader2 size={14} className="spin" /> : <CalendarClock size={14} />}
@@ -288,7 +301,14 @@ export default function Earnings() {
       {searchResult && (
         <div className={`er-search-result ${searchResult.confirmed ? "confirmed" : "estimated"}`}>
           <div className="er-sr-top">
-            <span className="er-sr-sym">{searchResult.symbol}</span>
+            <span
+              className="er-sr-sym"
+              onClick={() => onAnalyzeSymbol && onAnalyzeSymbol(searchResult.symbol)}
+              style={onAnalyzeSymbol ? { cursor: "pointer", textDecoration: "underline dotted" } : undefined}
+              title={onAnalyzeSymbol ? "Tap to analyze this ticker" : undefined}
+            >
+              {searchResult.symbol}
+            </span>
             <span className={`er-sr-badge ${searchResult.confirmed ? "confirmed" : "estimated"}`}>
               {searchResult.confirmed ? "Officially Confirmed" : "Estimated — Not Yet Announced"}
             </span>
@@ -349,7 +369,13 @@ export default function Earnings() {
                   const hourInfo = HOUR_LABEL[e.hour];
                   const HourIcon = hourInfo?.Icon;
                   return (
-                    <span className="er-ticker-chip" key={i} title={hourInfo ? hourInfo.label : "Timing not specified"}>
+                    <span
+                      className="er-ticker-chip"
+                      key={i}
+                      title={`${hourInfo ? hourInfo.label : "Timing not specified"}${onAnalyzeSymbol ? " — tap to analyze" : ""}`}
+                      onClick={onAnalyzeSymbol ? () => onAnalyzeSymbol(e.symbol) : undefined}
+                      style={onAnalyzeSymbol ? { cursor: "pointer" } : undefined}
+                    >
                       <span className="er-ticker-sym">{e.symbol}</span>
                       {HourIcon && <HourIcon size={11} className={`er-hour-icon ${e.hour}`} />}
                     </span>

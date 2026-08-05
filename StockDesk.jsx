@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import TickerSearchInput from "./TickerSearchInput.jsx";
 import {
   Search,
   X,
@@ -309,7 +310,7 @@ const SOURCE_LABEL = {
   sim: "Simulated",
 };
 
-export default function StockDesk() {
+export default function StockDesk({ onAnalyzeSymbol }) {
   const [watchlist, setWatchlist] = useState([]);
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
@@ -497,7 +498,7 @@ export default function StockDesk() {
         .error-msg { padding: 0 24px; color: #E8697A; font-family: 'IBM Plex Mono', monospace; font-size: 12px; min-height: 20px; margin-top: 6px; }
 
         .grid { padding: 16px 24px 40px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
-        .card { background: #1C1F25; border: 1px solid #2A2E36; border-radius: 10px; padding: 16px; position: relative; transition: border-color 0.15s; }
+        .card { background: #1C1F25; border: 1px solid #2A2E36; border-radius: 10px; padding: 16px; position: relative; transition: border-color 0.15s; cursor: pointer; }
         .card:hover { border-color: #3A3F49; }
         .card:hover .remove-btn { opacity: 1; }
         .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -601,10 +602,10 @@ export default function StockDesk() {
       <form className="search-row" onSubmit={handleAdd}>
         <div className="search-box">
           <Search size={15} color="#5A5F68" />
-          <input
-            placeholder="Add ticker, e.g. TSLA"
+          <TickerSearchInput
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            placeholder="Add ticker or company name, e.g. TSLA or Oracle"
             maxLength={10}
           />
         </div>
@@ -629,13 +630,13 @@ export default function StockDesk() {
           {watchlist.map((s) => {
             const positive = s.change >= 0;
             return (
-              <div className="card" key={s.symbol}>
+              <div className="card" key={s.symbol} onClick={() => onAnalyzeSymbol && onAnalyzeSymbol(s.symbol)} role="button" tabIndex={0}>
                 <div className="card-top">
                   <div>
                     <div className="sym">{s.symbol}</div>
                     <div className="name">{s.name}</div>
                   </div>
-                  <button className="remove-btn" onClick={() => handleRemove(s.symbol)} aria-label={`Remove ${s.symbol}`}>
+                  <button className="remove-btn" onClick={(e) => { e.stopPropagation(); handleRemove(s.symbol); }} aria-label={`Remove ${s.symbol}`}>
                     <X size={15} />
                   </button>
                 </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import HelpModal from "./HelpModal.jsx";
+import TickerSearchInput from "./TickerSearchInput.jsx";
 import { matchGlossary } from "./indicatorGlossary.js";
 import {
   Search,
@@ -677,9 +678,15 @@ export default function DeepDive() {
     if (saved) setQuery(saved);
   }, []);
 
-  const handleAnalyze = async (e) => {
+  const handleAnalyze = (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
+    if (!symbol) return;
+    runAnalysis(symbol);
+  };
+
+  const runAnalysis = async (rawSymbol) => {
+    const symbol = rawSymbol.trim().toUpperCase();
     if (!symbol) return;
     setLoading(true);
     setError("");
@@ -1112,7 +1119,13 @@ export default function DeepDive() {
       <form className="dd-search-row" onSubmit={handleAnalyze}>
         <div className="dd-search-box">
           <Search size={15} color="#5A5F68" />
-          <input placeholder="Enter a ticker, e.g. AAPL" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={10} />
+          <TickerSearchInput
+            value={query}
+            onChange={setQuery}
+            onSelect={(symbol) => runAnalysis(symbol)}
+            placeholder="Enter a ticker or company name, e.g. AAPL or Oracle"
+            maxLength={10}
+          />
         </div>
         <button className="dd-btn" type="submit" disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}

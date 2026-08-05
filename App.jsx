@@ -107,8 +107,16 @@ function HealthPanel({ onClose }) {
 export default function App() {
   const [tab, setTab] = useState("desk");
   const [showHealth, setShowHealth] = useState(false);
+  const [pendingAnalyze, setPendingAnalyze] = useState(null);
   const activeTab = TABS.find((t) => t.key === tab);
   const ActiveComponent = activeTab.Component;
+
+  // Lets any tab (Watchlist, Heatmap, Earnings) request "jump to Analyzer and run this ticker."
+  // Passed to every tab as a prop; only the ones that show a list of stocks actually use it.
+  const handleAnalyzeSymbol = (symbol) => {
+    setPendingAnalyze({ symbol, ts: Date.now() });
+    setTab("analyzer");
+  };
 
   return (
     <div style={{ background: "#14161A", minHeight: "100vh" }}>
@@ -135,7 +143,7 @@ export default function App() {
       </div>
       <ErrorBoundary label={activeTab.label} key={tab}>
         <Suspense fallback={<TabLoadingFallback />}>
-          <ActiveComponent />
+          <ActiveComponent onAnalyzeSymbol={handleAnalyzeSymbol} pendingSymbol={pendingAnalyze} />
         </Suspense>
       </ErrorBoundary>
       {showHealth && <HealthPanel onClose={() => setShowHealth(false)} />}

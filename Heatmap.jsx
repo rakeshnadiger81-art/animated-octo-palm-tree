@@ -55,12 +55,18 @@ function bucketLabel(pct) {
 }
 const TIER_SIZE = { 3: 128, 2: 100, 1: 78 };
 
-function Tile({ s }) {
+function Tile({ s, onClick }) {
   const bg = bucketColor(s.changePercent);
   const size = TIER_SIZE[s.tier] || 78;
   const textColor = s.changePercent !== null && Math.abs(s.changePercent) < 3.5 && s.changePercent >= -2 ? "#14161A" : "#F4F2EC";
   return (
-    <div className="hm-tile" style={{ background: bg, width: size, height: size * 0.72, color: textColor }} title={`${s.name}`}>
+    <div
+      className="hm-tile"
+      style={{ background: bg, width: size, height: size * 0.72, color: textColor, cursor: onClick ? "pointer" : "default" }}
+      title={`${s.name}${onClick ? " — tap to analyze" : ""}`}
+      onClick={onClick ? () => onClick(s.symbol) : undefined}
+      role={onClick ? "button" : undefined}
+    >
       <div className="hm-tile-sym">{s.symbol}</div>
       <div className="hm-tile-pct">{s.changePercent !== null ? `${s.changePercent >= 0 ? "+" : ""}${fmt(s.changePercent, 1)}%` : "N/A"}</div>
       <div className="hm-tile-price">${fmt(s.price)}</div>
@@ -86,13 +92,13 @@ function IndexCard({ label, d }) {
   );
 }
 
-function RankList({ title, items, valueFn, icon: Icon }) {
+function RankList({ title, items, valueFn, icon: Icon, onItemClick }) {
   return (
     <div className="hm-ranklist">
       <div className="hm-ranklist-title"><Icon size={13} /> {title}</div>
       <ol className="hm-ranklist-items">
         {items.map((s, i) => (
-          <li key={s.symbol + i}>
+          <li key={s.symbol + i} onClick={onItemClick ? () => onItemClick(s.symbol) : undefined} style={onItemClick ? { cursor: "pointer" } : undefined}>
             <span className="hm-rank-sym">{s.symbol}</span>
             <span className="hm-rank-name">{s.sector}</span>
             <span className="hm-rank-val">{valueFn(s)}</span>
@@ -104,7 +110,7 @@ function RankList({ title, items, valueFn, icon: Icon }) {
   );
 }
 
-export default function Heatmap() {
+export default function Heatmap({ onAnalyzeSymbol }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
@@ -344,7 +350,7 @@ export default function Heatmap() {
                     </span>
                   </div>
                   <div className="hm-tiles">
-                    {data.sectors[stat.sector].map((s) => <Tile s={s} key={s.symbol + stat.sector} />)}
+                    {data.sectors[stat.sector].map((s) => <Tile s={s} key={s.symbol + stat.sector} onClick={onAnalyzeSymbol} />)}
                   </div>
                 </div>
               ))}
@@ -355,12 +361,12 @@ export default function Heatmap() {
           <div>
             <div className="hm-section-title">Highlights</div>
             <div className="hm-highlights-grid">
-              <RankList title="Top Gainers" items={gainers} icon={TrendingUp} valueFn={(s) => `+${fmt(s.changePercent, 1)}%`} />
-              <RankList title="Top Losers" items={losers} icon={TrendingDown} valueFn={(s) => `${fmt(s.changePercent, 1)}%`} />
-              <RankList title="Most Active (Volume)" items={mostActive} icon={Activity} valueFn={(s) => fmtVol(s.volume)} />
-              <RankList title="Unusual Volume (RVOL > 1.8x)" items={unusualVolume} icon={Flame} valueFn={(s) => `${fmt(s.relVolume, 2)}x`} />
-              <RankList title="New 52-Week Highs" items={new52High} icon={TrendingUp} valueFn={(s) => `$${fmt(s.price)}`} />
-              <RankList title="New 52-Week Lows" items={new52Low} icon={TrendingDown} valueFn={(s) => `$${fmt(s.price)}`} />
+              <RankList title="Top Gainers" items={gainers} icon={TrendingUp} valueFn={(s) => `+${fmt(s.changePercent, 1)}%`} onItemClick={onAnalyzeSymbol} />
+              <RankList title="Top Losers" items={losers} icon={TrendingDown} valueFn={(s) => `${fmt(s.changePercent, 1)}%`} onItemClick={onAnalyzeSymbol} />
+              <RankList title="Most Active (Volume)" items={mostActive} icon={Activity} valueFn={(s) => fmtVol(s.volume)} onItemClick={onAnalyzeSymbol} />
+              <RankList title="Unusual Volume (RVOL > 1.8x)" items={unusualVolume} icon={Flame} valueFn={(s) => `${fmt(s.relVolume, 2)}x`} onItemClick={onAnalyzeSymbol} />
+              <RankList title="New 52-Week Highs" items={new52High} icon={TrendingUp} valueFn={(s) => `$${fmt(s.price)}`} onItemClick={onAnalyzeSymbol} />
+              <RankList title="New 52-Week Lows" items={new52Low} icon={TrendingDown} valueFn={(s) => `$${fmt(s.price)}`} onItemClick={onAnalyzeSymbol} />
             </div>
           </div>
 
@@ -392,12 +398,12 @@ export default function Heatmap() {
 
               <div className="hm-summary-line" style={{ marginTop: 14 }}><strong>Potential swing trade candidates</strong> (elevated relative volume + strong up move, not yet extended):</div>
               <div className="hm-tiles" style={{ marginTop: 6 }}>
-                {swingCandidates.length ? swingCandidates.map((s) => <Tile s={s} key={"swing" + s.symbol} />) : <span style={{ color: "#5A5F68", fontSize: 12 }}>No matches today</span>}
+                {swingCandidates.length ? swingCandidates.map((s) => <Tile s={s} key={"swing" + s.symbol} onClick={onAnalyzeSymbol} />) : <span style={{ color: "#5A5F68", fontSize: 12 }}>No matches today</span>}
               </div>
 
               <div className="hm-summary-line" style={{ marginTop: 14 }}><strong>Potential long-term accumulation candidates</strong> (above 200-day SMA, pulled back 5–20% from 52-week high):</div>
               <div className="hm-tiles" style={{ marginTop: 6 }}>
-                {accumulationCandidates.length ? accumulationCandidates.map((s) => <Tile s={s} key={"acc" + s.symbol} />) : <span style={{ color: "#5A5F68", fontSize: 12 }}>No matches today</span>}
+                {accumulationCandidates.length ? accumulationCandidates.map((s) => <Tile s={s} key={"acc" + s.symbol} onClick={onAnalyzeSymbol} />) : <span style={{ color: "#5A5F68", fontSize: 12 }}>No matches today</span>}
               </div>
             </div>
           </div>

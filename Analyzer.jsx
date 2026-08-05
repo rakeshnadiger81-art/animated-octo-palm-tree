@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import HelpModal from "./HelpModal.jsx";
+import TickerSearchInput from "./TickerSearchInput.jsx";
 import { matchGlossary } from "./indicatorGlossary.js";
 import {
   BarChart,
@@ -514,7 +515,7 @@ function ReadingGrid({ readings }) {
 
 // ============================== COMPONENT ==============================
 
-export default function Analyzer() {
+export default function Analyzer({ pendingSymbol }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -526,9 +527,26 @@ export default function Analyzer() {
     if (saved) setQuery(saved);
   }, []);
 
-  const handleAnalyze = async (e) => {
+  // Fires when another tab (Watchlist/Heatmap/Earnings) requests "analyze this ticker" — the
+  // parent App component bumps pendingSymbol's timestamp on every request, even for the same
+  // symbol twice in a row, so this effect reliably re-fires each time.
+  useEffect(() => {
+    if (pendingSymbol?.symbol) {
+      setQuery(pendingSymbol.symbol);
+      runAnalysis(pendingSymbol.symbol);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingSymbol]);
+
+  const handleAnalyze = (e) => {
     e.preventDefault();
     const symbol = query.trim().toUpperCase();
+    if (!symbol) return;
+    runAnalysis(symbol);
+  };
+
+  const runAnalysis = async (rawSymbol) => {
+    const symbol = rawSymbol.trim().toUpperCase();
     if (!symbol) return;
     setLoading(true);
     setError("");
@@ -891,7 +909,13 @@ export default function Analyzer() {
       <form className="an-search-row" onSubmit={handleAnalyze}>
         <div className="an-search-box">
           <Search size={15} color="#5A5F68" />
-          <input placeholder="Enter a ticker, e.g. AAPL" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={10} />
+          <TickerSearchInput
+            value={query}
+            onChange={setQuery}
+            onSelect={(symbol) => runAnalysis(symbol)}
+            placeholder="Enter a ticker or company name, e.g. AAPL or Oracle"
+            maxLength={10}
+          />
         </div>
         <button className="an-btn" type="submit" disabled={loading}>
           {loading ? <Loader2 size={14} className="spin" /> : <Search size={14} />}
