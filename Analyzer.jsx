@@ -551,6 +551,7 @@ export default function Analyzer({ pendingSymbol }) {
     setLoading(true);
     setError("");
     setResult(null);
+    setQuery("");
 
     const cached = analysisCache.get(symbol);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) {

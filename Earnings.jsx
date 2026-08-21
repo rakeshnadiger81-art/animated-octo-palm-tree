@@ -159,6 +159,7 @@ export default function Earnings({ onAnalyzeSymbol }) {
     setSearchLoading(true);
     setSearchError("");
     setSearchResult(null);
+    setQuery("");
     try {
       const from = new Date();
       const to = new Date(Date.now() + 210 * 24 * 60 * 60 * 1000);

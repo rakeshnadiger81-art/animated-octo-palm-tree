@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Loader2, ExternalLink, AlertTriangle, Newspaper } from "lucide-react";
+import TickerSearchInput from "./TickerSearchInput.jsx";
 
 const FETCH_TIMEOUT_MS = 8000;
 const APIKEY_KEY = "stockdesk:finnhub_key";
@@ -110,6 +111,7 @@ export default function News() {
   const [error, setError] = useState("");
   const [tickerQuery, setTickerQuery] = useState("");
   const [tickerMode, setTickerMode] = useState(false);
+  const [searchedSymbol, setSearchedSymbol] = useState("");
   const [tickerLoading, setTickerLoading] = useState(false);
   const apiKeyRef = useRef(readLocal(APIKEY_KEY) || "");
 
@@ -139,9 +141,15 @@ export default function News() {
     if (saved) setTickerQuery(saved);
   }, []);
 
-  const handleTickerSearch = async (e) => {
+  const handleTickerSearch = (e) => {
     e.preventDefault();
     const symbol = tickerQuery.trim().toUpperCase();
+    if (!symbol) return;
+    runTickerSearch(symbol);
+  };
+
+  const runTickerSearch = async (rawSymbol) => {
+    const symbol = rawSymbol.trim().toUpperCase();
     if (!symbol) return;
     apiKeyRef.current = readLocal(APIKEY_KEY) || "";
     if (!apiKeyRef.current) {
@@ -150,11 +158,13 @@ export default function News() {
     }
     setTickerLoading(true);
     setError("");
+    setTickerQuery("");
     try {
       const items = await fetchFinnhubCompanyNews(symbol, apiKeyRef.current);
       items.sort((a, b) => (b.pubDate?.getTime() || 0) - (a.pubDate?.getTime() || 0));
       setArticles(items);
       setTickerMode(true);
+      setSearchedSymbol(symbol);
       writeLocal(LAST_SYMBOL_KEY, symbol);
     } catch (e) {
       setError(`Couldn't pull news for ${symbol}. Check the ticker and your Finnhub key.`);
@@ -211,10 +221,11 @@ export default function News() {
       <form className="news-search-row" onSubmit={handleTickerSearch}>
         <div className="news-search-box">
           <Search size={14} color="#5A5F68" />
-          <input
-            placeholder="Company news by ticker, e.g. TSLA"
+          <TickerSearchInput
             value={tickerQuery}
-            onChange={(e) => setTickerQuery(e.target.value)}
+            onChange={setTickerQuery}
+            onSelect={(symbol) => runTickerSearch(symbol)}
+            placeholder="Company news by ticker or name, e.g. TSLA or Oracle"
             maxLength={10}
           />
         </div>
@@ -245,7 +256,7 @@ export default function News() {
         <div className="news-list">
           {tickerMode && (
             <div className="news-source" style={{ marginBottom: -2 }}>
-              Company news — {tickerQuery.toUpperCase()}
+              Company news — {searchedSymbol}
             </div>
           )}
           {articles.slice(0, 30).map((a, i) => (

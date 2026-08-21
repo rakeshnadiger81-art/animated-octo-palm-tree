@@ -691,6 +691,7 @@ export default function DeepDive() {
     setLoading(true);
     setError("");
     setResult(null);
+    setQuery("");
 
     const cached = analysisCache.get(symbol);
     if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
